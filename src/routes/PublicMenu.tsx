@@ -59,7 +59,7 @@ export function PublicMenu() {
               <img
                 src="/dus-cafe-logo.png"
                 alt="DÜŞ Cafe"
-                className="h-24 w-auto select-none sm:h-28"
+                className="h-28 w-auto select-none sm:h-32 md:h-36"
                 loading="eager"
                 decoding="async"
               />
