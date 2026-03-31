@@ -10,7 +10,7 @@ export function AdminDashboard() {
   const nav = useNavigate()
   const products = backend.useProducts()
   const categories = backend.useCategories()
-  const [authed, setAuthed] = useState(false)
+  const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!isSupabaseEnabled) backend.ensureSeed()
@@ -27,6 +27,17 @@ export function AdminDashboard() {
       }
     })()
   }, [])
+  if (authed === null) {
+    return (
+      <div className="min-h-[100svh] bg-zinc-950">
+        <div className="mx-auto w-full max-w-5xl px-4 py-10">
+          <div className="rounded-2xl bg-white/5 p-6 text-sm text-zinc-300 ring-1 ring-white/10">
+            Kontrol ediliyor…
+          </div>
+        </div>
+      </div>
+    )
+  }
   if (!authed) return <Navigate to="/admin" replace />
 
   const categoriesSorted = useMemo(() => {
