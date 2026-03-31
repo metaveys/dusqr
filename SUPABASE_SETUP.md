@@ -24,6 +24,14 @@ create table if not exists public.categories (
   created_at timestamptz not null default now()
 );
 
+-- customer requests
+create table if not exists public.customer_requests (
+  id uuid primary key default gen_random_uuid(),
+  message text not null,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz
+);
+
 -- products
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
@@ -36,6 +44,7 @@ create table if not exists public.products (
 );
 
 create index if not exists products_category_idx on public.products(category);
+create index if not exists customer_requests_seen_at_idx on public.customer_requests(seen_at);
 ```
 
 ---
@@ -101,6 +110,7 @@ SQL Editor’da:
 ```sql
 alter table public.products enable row level security;
 alter table public.categories enable row level security;
+alter table public.customer_requests enable row level security;
 
 -- public read
 create policy "public read products"
@@ -110,6 +120,11 @@ using (true);
 create policy "public read categories"
 on public.categories for select
 using (true);
+
+create policy "public insert customer requests"
+on public.customer_requests for insert
+using (true)
+with check (true);
 
 -- authed write
 create policy "authed write products"
@@ -123,6 +138,12 @@ on public.categories for all
 to authenticated
 using (true)
 with check (true);
+
+create policy "authed manage customer requests"
+on public.customer_requests for all
+to authenticated
+using (true)
+with check (true);
 ```
 
 > Daha sıkı güvenlik isterseniz “authenticated” yerine sadece belirli admin’lere izin veren bir yapı kurulur (JWT claim / role).
@@ -131,7 +152,7 @@ with check (true);
 
 ## 6) Realtime
 
-Database → Replication / Realtime ayarlarında `products` ve `categories` tabloları realtime için açık olmalı.
+Database → Replication / Realtime ayarlarında `products`, `categories` ve `customer_requests` tabloları realtime için açık olmalı.
 
 ---
 

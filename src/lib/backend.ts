@@ -1,4 +1,4 @@
-import type { Product } from '../types'
+import type { CustomerRequest, Product } from '../types'
 import { supabase, isSupabaseEnabled } from './supabaseClient'
 import {
   addCategory as addCategoryLocal,
@@ -15,6 +15,11 @@ import {
   upsertProduct as upsertProductLocal,
   useProducts as useProductsLocal,
 } from './productsStore'
+import {
+  addRequest as addRequestLocal,
+  markRequestSeen as markRequestSeenLocal,
+  useRequests as useRequestsLocal,
+} from './requestsStore'
 import { useEffect, useSyncExternalStore } from 'react'
 
 // -------- Local fallback (current behavior) ----------
@@ -31,26 +36,36 @@ export const localBackend = {
   ensureSeedCategories: ensureSeedCategoriesLocal,
   addCategory: addCategoryLocal,
   removeCategory: removeCategoryLocal,
+  useRequests: useRequestsLocal,
+  addRequest: addRequestLocal,
+  markRequestSeen: markRequestSeenLocal,
 }
 
 // -------- Supabase backend ----------
 const PRODUCTS_CHANNEL = 'dusqr_products'
 const CATEGORIES_CHANNEL = 'dusqr_categories'
+const REQUESTS_CHANNEL = 'dusqr_customer_requests'
 
 let productsCache: Product[] = []
 let categoriesCache: string[] = []
+let requestsCache: CustomerRequest[] = []
 const productsListeners = new Set<() => void>()
 const categoriesListeners = new Set<() => void>()
+const requestsListeners = new Set<() => void>()
 
 let started = false
 let productsUnsub: (() => void) | null = null
 let categoriesUnsub: (() => void) | null = null
+let requestsUnsub: (() => void) | null = null
 
 function emitProducts() {
   for (const cb of productsListeners) cb()
 }
 function emitCategories() {
   for (const cb of categoriesListeners) cb()
+}
+function emitRequests() {
+  for (const cb of requestsListeners) cb()
 }
 
 async function refreshProducts() {
@@ -77,12 +92,25 @@ async function refreshCategories() {
   }
 }
 
+async function refreshRequests() {
+  if (!supabase) return
+  const { data, error } = await supabase
+    .from('customer_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (!error && data) {
+    requestsCache = data as any
+    emitRequests()
+  }
+}
+
 function startSupabaseRealtimeOnce() {
   if (!supabase || started) return
   started = true
 
   void refreshProducts()
   void refreshCategories()
+  void refreshRequests()
 
   const productsChannel = supabase
     .channel(PRODUCTS_CHANNEL)
@@ -108,6 +136,19 @@ function startSupabaseRealtimeOnce() {
 
   categoriesUnsub = () => {
     void supabase!.removeChannel(categoriesChannel)
+  }
+
+  const requestsChannel = supabase
+    .channel(REQUESTS_CHANNEL)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'customer_requests' },
+      () => void refreshRequests(),
+    )
+    .subscribe()
+
+  requestsUnsub = () => {
+    void supabase!.removeChannel(requestsChannel)
   }
 }
 
@@ -138,6 +179,21 @@ function useCategoriesSupabase() {
     },
     () => categoriesCache,
     () => categoriesCache,
+  )
+}
+
+function useRequestsSupabase() {
+  useEffect(() => {
+    startSupabaseRealtimeOnce()
+  }, [])
+  return useSyncExternalStore(
+    (cb) => {
+      startSupabaseRealtimeOnce()
+      requestsListeners.add(cb)
+      return () => requestsListeners.delete(cb)
+    },
+    () => requestsCache,
+    () => requestsCache,
   )
 }
 
@@ -181,6 +237,26 @@ async function uploadImageSupabase(file: File): Promise<string> {
   return data.publicUrl
 }
 
+async function addRequestSupabase(message: string) {
+  if (!supabase) return
+  const m = message.trim()
+  if (!m) return
+  const { error } = await supabase.from('customer_requests').insert({ message: m })
+  if (error) throw error
+  await refreshRequests()
+}
+
+async function markRequestSeenSupabase(id: string) {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('customer_requests')
+    .update({ seen_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('seen_at', null)
+  if (error) throw error
+  await refreshRequests()
+}
+
 export const backend = {
   mode: isSupabaseEnabled ? ('supabase' as const) : ('local' as const),
   enabled: true,
@@ -205,12 +281,21 @@ export const backend = {
   addCategory: isSupabaseEnabled ? addCategorySupabase : localBackend.addCategory,
   removeCategory: isSupabaseEnabled ? removeCategorySupabase : localBackend.removeCategory,
 
+  // Customer requests
+  useRequests: isSupabaseEnabled ? useRequestsSupabase : localBackend.useRequests,
+  addRequest: isSupabaseEnabled ? addRequestSupabase : localBackend.addRequest,
+  markRequestSeen: isSupabaseEnabled
+    ? markRequestSeenSupabase
+    : localBackend.markRequestSeen,
+
   // housekeeping (optional)
   stopRealtime: () => {
     productsUnsub?.()
     categoriesUnsub?.()
+    requestsUnsub?.()
     productsUnsub = null
     categoriesUnsub = null
+    requestsUnsub = null
     started = false
   },
 }

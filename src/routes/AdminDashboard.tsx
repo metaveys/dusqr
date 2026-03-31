@@ -4,12 +4,13 @@ import { backend } from '../lib/backend'
 import { isSupabaseEnabled } from '../lib/supabaseClient'
 import { isAuthed, logout } from '../lib/auth'
 import { isAuthedSupabase, signOut } from '../lib/supabaseAuth'
-import type { Product } from '../types'
+import type { CustomerRequest, Product } from '../types'
 
 export function AdminDashboard() {
   const nav = useNavigate()
   const products = backend.useProducts()
   const categories = backend.useCategories()
+  const requests = backend.useRequests()
   const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -46,8 +47,13 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [jsonText, setJsonText] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [requestsOpen, setRequestsOpen] = useState(false)
 
   const authStatus = authed === null ? 'checking' : authed ? 'ok' : 'denied'
+  const unreadCount = useMemo(
+    () => requests.filter((r) => !r.seen_at).length,
+    [requests],
+  )
 
   useEffect(() => {
     if (!editing) return
@@ -306,20 +312,34 @@ export function AdminDashboard() {
                   Düzenlemek için seç, silmek için butona bas.
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSupabaseEnabled) {
-                    void signOut()
-                  } else {
-                    logout()
-                  }
-                  nav('/admin', { replace: true })
-                }}
-                className="rounded-full bg-white/5 px-4 py-2 text-xs font-semibold text-zinc-200 ring-1 ring-white/10 hover:bg-white/10"
-              >
-                Çıkış
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRequestsOpen(true)}
+                  className="relative rounded-full bg-white px-4 py-2 text-xs font-extrabold text-zinc-900"
+                >
+                  Müşteri İsteklerini Gör
+                  {unreadCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-black text-white">
+                      {unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSupabaseEnabled) {
+                      void signOut()
+                    } else {
+                      logout()
+                    }
+                    nav('/admin', { replace: true })
+                  }}
+                  className="rounded-full bg-white/5 px-4 py-2 text-xs font-semibold text-zinc-200 ring-1 ring-white/10 hover:bg-white/10"
+                >
+                  Çıkış
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 rounded-2xl bg-zinc-950/30 p-4 ring-1 ring-white/10">
@@ -510,6 +530,117 @@ export function AdminDashboard() {
               />
             </div>
           </section>
+        </div>
+      </div>
+
+      {requestsOpen ? (
+        <RequestsModal
+          requests={requests}
+          onClose={() => setRequestsOpen(false)}
+          onMarkSeen={async (id) => {
+            try {
+              await backend.markRequestSeen(id)
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'İşaretleme başarısız.')
+            }
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function RequestsModal({
+  requests,
+  onClose,
+  onMarkSeen,
+}: {
+  requests: CustomerRequest[]
+  onClose: () => void
+  onMarkSeen: (id: string) => Promise<void>
+}) {
+  const unread = requests.filter((r) => !r.seen_at)
+  const read = requests.filter((r) => r.seen_at)
+
+  function Row(r: CustomerRequest) {
+    const created = new Date(r.created_at)
+    const ts = Number.isFinite(created.getTime())
+      ? created.toLocaleString('tr-TR')
+      : r.created_at
+    return (
+      <div
+        key={r.id}
+        className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-xs font-semibold text-zinc-400">{ts}</div>
+          {!r.seen_at ? (
+            <button
+              type="button"
+              onClick={() => void onMarkSeen(r.id)}
+              className="rounded-full bg-white px-3 py-1 text-xs font-extrabold text-zinc-900"
+            >
+              Okundu işaretle
+            </button>
+          ) : (
+            <div className="text-xs font-semibold text-emerald-300">Okundu</div>
+          )}
+        </div>
+        <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-100">
+          {r.message}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/60"
+        onClick={onClose}
+        aria-label="Kapat"
+      />
+      <div className="absolute left-1/2 top-1/2 w-[92vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-zinc-950 p-5 ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.65)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-lg font-black tracking-tight text-white">
+              Müşteri İstekleri
+            </div>
+            <div className="mt-1 text-xs text-zinc-400">
+              Okunmamış: {unread.length} • Toplam: {requests.length}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 ring-1 ring-white/10 hover:bg-white/10"
+          >
+            Kapat
+          </button>
+        </div>
+
+        <div className="mt-4 max-h-[70svh] space-y-3 overflow-auto pr-1">
+          {requests.length === 0 ? (
+            <div className="rounded-2xl bg-white/5 p-6 text-sm text-zinc-300 ring-1 ring-white/10">
+              Henüz istek yok.
+            </div>
+          ) : (
+            <>
+              {unread.length > 0 ? (
+                <div className="text-xs font-semibold text-zinc-300">
+                  Okunmamış
+                </div>
+              ) : null}
+              {unread.map(Row)}
+              {read.length > 0 ? (
+                <div className="pt-2 text-xs font-semibold text-zinc-300">
+                  Okunanlar
+                </div>
+              ) : null}
+              {read.map(Row)}
+            </>
+          )}
         </div>
       </div>
     </div>
