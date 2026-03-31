@@ -27,18 +27,6 @@ export function AdminDashboard() {
       }
     })()
   }, [])
-  if (authed === null) {
-    return (
-      <div className="min-h-[100svh] bg-zinc-950">
-        <div className="mx-auto w-full max-w-5xl px-4 py-10">
-          <div className="rounded-2xl bg-white/5 p-6 text-sm text-zinc-300 ring-1 ring-white/10">
-            Kontrol ediliyor…
-          </div>
-        </div>
-      </div>
-    )
-  }
-  if (!authed) return <Navigate to="/admin" replace />
 
   const categoriesSorted = useMemo(() => {
     return [...categories].sort((a, b) => a.localeCompare(b, 'tr'))
@@ -58,6 +46,8 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [jsonText, setJsonText] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
+
+  const authStatus = authed === null ? 'checking' : authed ? 'ok' : 'denied'
 
   useEffect(() => {
     if (!editing) return
@@ -131,6 +121,19 @@ export function AdminDashboard() {
     await backend.upsertProduct(next as any)
     clearForm()
   }
+
+  if (authStatus === 'checking') {
+    return (
+      <div className="min-h-[100svh] bg-zinc-950">
+        <div className="mx-auto w-full max-w-5xl px-4 py-10">
+          <div className="rounded-2xl bg-white/5 p-6 text-sm text-zinc-300 ring-1 ring-white/10">
+            Kontrol ediliyor…
+          </div>
+        </div>
+      </div>
+    )
+  }
+  if (authStatus === 'denied') return <Navigate to="/admin" replace />
 
   return (
     <div className="min-h-[100svh] bg-zinc-950">
