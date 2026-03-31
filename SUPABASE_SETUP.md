@@ -47,6 +47,35 @@ Storage → Create bucket:
 - Bucket adı: `product-images`
 - Public: **ON** (kolay kullanım için)
 
+### Storage Policies (upload için gerekli olabilir)
+
+Eğer admin panelde görsel yüklerken `permission denied` benzeri hata alırsanız:
+
+```sql
+-- public read images
+create policy "public read product images"
+on storage.objects for select
+using (bucket_id = 'product-images');
+
+-- authenticated upload images
+create policy "authed upload product images"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'product-images');
+
+-- authenticated update/delete (opsiyonel)
+create policy "authed update product images"
+on storage.objects for update
+to authenticated
+using (bucket_id = 'product-images')
+with check (bucket_id = 'product-images');
+
+create policy "authed delete product images"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'product-images');
+```
+
 ---
 
 ## 4) Auth (Admin)

@@ -93,8 +93,9 @@ export function AdminDashboard() {
         reader.readAsDataURL(file)
       })
       setImageUrl(dataUrl)
-    } catch {
-      setError('Görsel yükleme başarısız.')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Görsel yükleme başarısız.'
+      setError(msg)
     }
   }
 
