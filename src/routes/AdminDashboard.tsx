@@ -334,11 +334,18 @@ export function AdminDashboard() {
                 />
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const n = newCategoryName.trim()
                     if (!n) return
-                    void backend.addCategory(n)
-                    setNewCategoryName('')
+                    try {
+                      await backend.addCategory(n)
+                      setNewCategoryName('')
+                      setError(null)
+                    } catch (e) {
+                      const msg =
+                        e instanceof Error ? e.message : 'Kategori ekleme başarısız.'
+                      setError(msg)
+                    }
                   }}
                   className="shrink-0 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-zinc-900"
                 >
@@ -368,8 +375,19 @@ export function AdminDashboard() {
                             return
                           }
                           if (confirm(`"${c}" kategorisi silinsin mi?`)) {
-                            void backend.removeCategory(c)
-                            if (category === c) setCategory('')
+                            ;(async () => {
+                              try {
+                                await backend.removeCategory(c)
+                                if (category === c) setCategory('')
+                                setError(null)
+                              } catch (e) {
+                                const msg =
+                                  e instanceof Error
+                                    ? e.message
+                                    : 'Kategori silme başarısız.'
+                                setError(msg)
+                              }
+                            })()
                           }
                         }}
                         className="rounded-full bg-red-500/10 px-2 py-1 text-[11px] font-extrabold text-red-200 ring-1 ring-red-500/20 hover:bg-red-500/15"

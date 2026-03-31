@@ -155,14 +155,18 @@ async function addCategorySupabase(name: string) {
   if (!supabase) return
   const n = name.trim()
   if (!n) return
-  await supabase.from('categories').upsert({ name: n })
+  const { error } = await supabase.from('categories').upsert({ name: n })
+  if (error) throw error
+  await refreshCategories()
 }
 
 async function removeCategorySupabase(name: string) {
   if (!supabase) return
   const n = name.trim()
   if (!n) return
-  await supabase.from('categories').delete().eq('name', n)
+  const { error } = await supabase.from('categories').delete().eq('name', n)
+  if (error) throw error
+  await refreshCategories()
 }
 
 async function uploadImageSupabase(file: File): Promise<string> {
